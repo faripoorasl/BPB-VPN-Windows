@@ -497,6 +497,13 @@ class _InstallStepState extends State<_InstallStep> {
   };
   bool _started = false;
   bool _busy = false;
+
+  /// Stop was tapped: the in-flight requests finish in the background, but the rows show
+  /// "Stopped" at once and the choices (Retry / Tor / Skip) come back.
+  bool _stopped = false;
+
+  /// Install or the Tor retry is running: the Stop button shows.
+  bool _stoppable = false;
   List<String>? _bridges;
 
   /// Tor's bootstrap progress while "Retry with Tor" connects.
@@ -540,7 +547,8 @@ class _InstallStepState extends State<_InstallStep> {
         case _Item.masque:
           await state.renewMasqueAccount();
       }
-      row.status = _Status.done;
+      // Stopped: the row keeps its "Stopped" state, whatever landed late stays unused.
+      if (!_stopped) row.status = _Status.done;
     } catch (e) {
       row
         ..status = _Status.failed
@@ -552,6 +560,8 @@ class _InstallStepState extends State<_InstallStep> {
 
   /// Installs [items] side by side; when nothing failed, moves on.
   Future<void> _run(Iterable<_Item> items) async {
+    _stopped = false;
+    _stoppable = true;
     if (!_started) {
       _started = true;
       widget.onStarted();
@@ -561,6 +571,9 @@ class _InstallStepState extends State<_InstallStep> {
     setState(() => _busy = true);
     await Future.wait([for (final item in items.toList()) _install(item)]);
     if (!mounted) return;
+    // Stopped: the rows show it, the requests that land late are ignored, and the user picks
+    // again — an account isn't added behind their back.
+    if (_stopped) return;
     // The account is added only with both its workers deployed.
     if (!_saved && _deployed.length == WorkerType.values.length) {
       try {
@@ -579,12 +592,17 @@ class _InstallStepState extends State<_InstallStep> {
       }
       if (!mounted) return;
     }
-    setState(() => _busy = false);
+    setState(() {
+      _busy = false;
+      _stoppable = false;
+    });
     if (_failed.isEmpty) widget.onDone(_rows);
   }
 
   /// Starts Tor with the embedded bridges, then retries the failed items through it.
   Future<void> _retryWithTor() async {
+    _stopped = false;
+    _stoppable = true;
     setState(() {
       _busy = true;
       _torProgress = 0;
@@ -598,12 +616,35 @@ class _InstallStepState extends State<_InstallStep> {
     } catch (e) {
       if (mounted) {
         setState(() {
-          _torError = e is StateError ? e.message : '$e';
+          _torError = _stopped ? null : (e is StateError ? e.message : '$e');
           _torProgress = null;
           _busy = false;
         });
       }
     }
+    if (mounted) setState(() => _stoppable = false);
+  }
+
+  /// Stop: the rows running right now show "Stopped" (a request that never got an answer,
+  /// so Tor may help), Tor is stopped, and the choices come back while the in-flight
+  /// requests finish in the background, unused.
+  Future<void> _stop() async {
+    setState(() {
+      _stopped = true;
+      _stoppable = false;
+      _busy = false;
+      _torProgress = null;
+      _torError = null;
+      for (final row in _rows.values) {
+        if (row.status == _Status.running) {
+          row
+            ..status = _Status.failed
+            ..message = 'Stopped'
+            ..network = true;
+        }
+      }
+    });
+    await VpnChannel.stopSetupTor();
   }
 
   /// Skips what failed. Half a worker deployment isn't kept: what did deploy is deleted from
@@ -679,6 +720,16 @@ class _InstallStepState extends State<_InstallStep> {
           onPressed: () => _run(_rows.keys),
           icon: const Icon(Symbols.cloud_upload_rounded),
           label: const Text('Install'),
+        ),
+      ];
+    } else if (_stoppable) {
+      // Installing or connecting Tor: the user can always stop.
+      buttons = [
+        const Spacer(),
+        TextButton.icon(
+          onPressed: _stop,
+          icon: const Icon(Symbols.stop_rounded, size: 18),
+          label: const Text('Stop'),
         ),
       ];
     } else if (!_busy && failed.isNotEmpty) {

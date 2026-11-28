@@ -482,6 +482,36 @@ class AppState extends ChangeNotifier {
     );
   }
 
+  /// Clears everything the setup wizard created and brings the first-run wizard back from its
+  /// first step: the Cloudflare accounts (their workers and Pages projects are deleted from
+  /// Cloudflare too — best effort, so it also works offline), the registered WARP and MASQUE
+  /// accounts and the finished-setup marks. The learned endpoints stay (like [resetSettings]);
+  /// with [resetAllSettings] every other setting returns to its defaults as well.
+  Future<void> runSetupAgain({bool resetAllSettings = false}) async {
+    for (final account in [...cfAccounts]) {
+      try {
+        await removeCfAccount(account);
+      } catch (_) {
+        // Cloudflare unreachable or refusing: the workers stay there, the device forgets them.
+        await removeCfAccount(account, cleanUp: false).catchError((_) {});
+      }
+    }
+    final current = profile;
+    var next = current
+        .updated('warp.account', null)
+        .updated('masque.account', null);
+    if (resetAllSettings) {
+      next = next
+          .keepingPrivate(const Profile())
+          .updated('vless.cleanIps', current.vless.cleanIps)
+          .updated('warp.endpoints', current.warp.endpoints)
+          .updated('masque.endpoints', current.masque.endpoints);
+    }
+    _setProfile(next);
+    write('device.setupDone', false);
+    setSetupInProgress(true);
+  }
+
   void _markChangedWhileConnected() {
     if (status != VpnStatus.disconnected) needsReconnect = true;
   }

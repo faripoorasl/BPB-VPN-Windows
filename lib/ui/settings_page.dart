@@ -687,6 +687,15 @@ class SettingsPage extends StatelessWidget {
               const _VersionTile(),
               const _UpdateTile(),
               ListTile(
+                leading: const Icon(Symbols.restart_alt_rounded),
+                title: const Text('Run setup again'),
+                subtitle: const Text(
+                  'Remove accounts and registrations, start over from step 1',
+                ),
+                trailing: const Icon(Symbols.chevron_right_rounded),
+                onTap: () => _confirmRunSetupAgain(context, state),
+              ),
+              ListTile(
                 leading: const Icon(Symbols.code_rounded),
                 title: const Text('Source code'),
                 subtitle: const Text(
@@ -1081,6 +1090,51 @@ class _MitmCaTileState extends State<_MitmCaTile> {
   }
 }
 
+/// Asks before [AppState.runSetupAgain]: what it removes, and whether the rest of the
+/// settings reset too. The setup wizard replaces the screen when it returns.
+Future<void> _confirmRunSetupAgain(BuildContext context, AppState state) async {
+  var alsoSettings = false;
+  final ok = await showDialog<bool>(
+    context: context,
+    builder: (context) => StatefulBuilder(
+      builder: (context, setState) => AlertDialog(
+        title: const Text('Run the setup again?'),
+        content: Column(
+          mainAxisSize: MainAxisSize.min,
+          crossAxisAlignment: CrossAxisAlignment.start,
+          children: [
+            const Text(
+              'Your Cloudflare accounts and their workers are removed (from Cloudflare too, '
+              "when it can be reached), the registered WARP and MASQUE accounts are deleted, "
+              'and the setup starts over from step 1. This cannot be undone.',
+            ),
+            const SizedBox(height: 12),
+            CheckboxListTile(
+              value: alsoSettings,
+              onChanged: (v) => setState(() => alsoSettings = v ?? false),
+              controlAffinity: ListTileControlAffinity.leading,
+              contentPadding: EdgeInsets.zero,
+              dense: true,
+              title: const Text('Also reset all other settings'),
+            ),
+          ],
+        ),
+        actions: [
+          TextButton(
+            onPressed: () => Navigator.of(context).pop(false),
+            child: const Text('Cancel'),
+          ),
+          FilledButton(
+            onPressed: () => Navigator.of(context).pop(true),
+            child: const Text('Run setup again'),
+          ),
+        ],
+      ),
+    ),
+  );
+  if (ok == true) await state.runSetupAgain(resetAllSettings: alsoSettings);
+}
+
 /// Runs [renew] (WARP or MASQUE registration) and reports how it went: a snackbar on
 /// success, the error's message when the server refused, and when it couldn't be reached at
 /// all (blocked network, the usual case where Cloudflare's WARP API is filtered) a recovery
@@ -1208,8 +1262,13 @@ class _RegisterRetryDialogState extends State<_RegisterRetryDialog> {
       ),
       actions: [
         TextButton(
-          onPressed: _torProgress == null ? () => Navigator.of(context).pop(false) : null,
-          child: const Text('Later'),
+          onPressed: () async {
+            // Stopping Tor makes the background retry fail within a second; the dialog is
+            // already going away either way.
+            if (_torProgress != null) await VpnChannel.stopSetupTor();
+            if (context.mounted) Navigator.of(context).pop(false);
+          },
+          child: Text(_torProgress == null ? 'Later' : 'Stop'),
         ),
         if (widget.bridges != null)
           FilledButton(
