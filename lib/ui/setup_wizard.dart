@@ -1,5 +1,3 @@
-import 'dart:convert';
-
 import 'package:flutter/material.dart';
 import 'package:flutter/services.dart';
 import 'package:material_symbols_icons/symbols.dart';
@@ -7,8 +5,8 @@ import 'package:material_symbols_icons/symbols.dart';
 import '../models/cf_account.dart';
 import '../models/settings.dart';
 import '../services/cloudflare_api.dart';
-import '../services/cloudflare_client.dart';
 import '../services/net_errors.dart';
+import '../services/setup_tor.dart';
 import '../services/vpn_channel.dart';
 import '../state/app_state.dart';
 import 'cf_accounts_page.dart';
@@ -460,18 +458,6 @@ class _Row {
   bool network = false;
 }
 
-/// The Tor bridges the build embedded for "Retry with Tor" (assets/tor/bridges.json, written by
-/// scripts/fetch_tor_bridges.sh), or null without them. Only the wizard uses them.
-Future<List<String>?> _embeddedBridges() async {
-  try {
-    final json = jsonDecode(await rootBundle.loadString('assets/tor/bridges.json')) as Map;
-    final bridges = (json['bridges'] as List).whereType<String>().toList();
-    return bridges.isEmpty ? null : bridges;
-  } catch (_) {
-    return null;
-  }
-}
-
 class _InstallStep extends StatefulWidget {
   final CheckedToken token;
   final bool addingAccount;
@@ -520,7 +506,7 @@ class _InstallStepState extends State<_InstallStep> {
   @override
   void initState() {
     super.initState();
-    _embeddedBridges().then((b) {
+    SetupTor.embeddedBridges().then((b) {
       if (mounted) setState(() => _bridges = b);
     });
   }
@@ -605,26 +591,10 @@ class _InstallStepState extends State<_InstallStep> {
       _torError = null;
     });
     try {
-      final port = await VpnChannel.startSetupTor(_bridges!);
-      var last = -1;
-      var since = DateTime.now();
-      while (true) {
-        await Future<void>.delayed(const Duration(seconds: 1));
-        if (!mounted) return;
-        final status = await VpnChannel.setupTorStatus();
-        if (!status.running) throw StateError(status.error ?? 'Tor stopped');
-        if (status.progress != last) {
-          last = status.progress;
-          since = DateTime.now();
-        }
-        setState(() => _torProgress = status.progress);
-        if (status.progress >= 100) break;
-        if (DateTime.now().difference(since) > const Duration(minutes: 2)) {
-          throw StateError("Tor couldn't connect with the built-in bridges");
-        }
-      }
-      setState(() => _torProgress = null);
-      await CloudflareClient.viaTor(port, () => _run(_failed));
+      await SetupTor.run(_bridges!, () => _run(_failed), onProgress: (p) {
+        if (mounted) setState(() => _torProgress = p);
+      });
+      if (mounted) setState(() => _torProgress = null);
     } catch (e) {
       if (mounted) {
         setState(() {
@@ -633,8 +603,6 @@ class _InstallStepState extends State<_InstallStep> {
           _busy = false;
         });
       }
-    } finally {
-      await VpnChannel.stopSetupTor();
     }
   }
 
@@ -856,7 +824,12 @@ class _DoneStep extends StatelessWidget {
           const SizedBox(height: 16),
           const Text("These protocols will be available once you finish setting them up:"),
           if (deploySkipped) const Text('• Worker: add a Cloudflare account in Settings → VLESS → Cloudflare accounts.'),
-          if (registerSkipped) const Text('• WARP / MASQUE: Settings → Warp or Masque → Register.'),
+          if (registerSkipped)
+            const Text(
+              '• WARP / MASQUE: Settings → Warp or Masque → Register. If the server can\'t be '
+              'reached, connect in Psiphon mode first and register through it, or tap Register '
+              'and choose "Retry with Tor".',
+            ),
           if (!addingAccount) const Text('Psiphon, Tor and Serverless work without them.'),
         ],
       ],

@@ -64,3 +64,6 @@
 /android/app/src/main/assets/geosite.dat
 worker/worker.min.js
 core/build/
+
+# The setup-Tor bundle staged locally for the integration test (CI downloads its own).
+core/tor/

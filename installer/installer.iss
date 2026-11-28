@@ -3,7 +3,7 @@
 
 #define MyAppName "BPB VPN"
 #ifndef MyAppVersion
-#define MyAppVersion "1.3.2"
+#define MyAppVersion "1.3.3"
 #endif
 
 [Setup]

@@ -7,7 +7,9 @@ import 'package:material_symbols_icons/symbols.dart';
 import '../models/settings.dart';
 import '../models/theme_color.dart';
 import '../services/cloudflare_api.dart';
+import '../services/net_errors.dart';
 import '../services/scanner_channel.dart';
+import '../services/setup_tor.dart';
 import '../services/updates.dart';
 import '../services/vpn_channel.dart';
 import '../services/xray_config.dart';
@@ -1079,6 +1081,146 @@ class _MitmCaTileState extends State<_MitmCaTile> {
   }
 }
 
+/// Runs [renew] (WARP or MASQUE registration) and reports how it went: a snackbar on
+/// success, the error's message when the server refused, and when it couldn't be reached at
+/// all (blocked network, the usual case where Cloudflare's WARP API is filtered) a recovery
+/// dialog: retry right now through Tor, or wait for a tunnel (connect in another mode that
+/// works, e.g. Psiphon, then register again — the request goes through it).
+Future<void> _renewAccount(
+  BuildContext context, {
+  required Future<void> Function() renew,
+  required String successMessage,
+  required String blockedTitle,
+}) async {
+  final messenger = ScaffoldMessenger.of(context);
+  try {
+    await renew();
+    messenger.showSnackBar(SnackBar(content: Text(successMessage)));
+    return;
+  } catch (e) {
+    if (!isNetworkError(e)) {
+      messenger.showSnackBar(
+        SnackBar(content: Text(e is StateError ? e.message : '$e')),
+      );
+      return;
+    }
+  }
+  if (!context.mounted) return;
+  final bridges = await SetupTor.embeddedBridges();
+  if (!context.mounted) return;
+  final retried = await showDialog<bool>(
+    context: context,
+    builder: (context) => _RegisterRetryDialog(
+      title: blockedTitle,
+      bridges: bridges,
+      renew: renew,
+    ),
+  );
+  if (retried == true) {
+    messenger.showSnackBar(SnackBar(content: Text(successMessage)));
+  }
+}
+
+/// The dialog after a blocked registration: what happened, the two ways around it, and
+/// "Retry with Tor" with bootstrap progress. Pops true when the registration went through.
+class _RegisterRetryDialog extends StatefulWidget {
+  final String title;
+  final List<String>? bridges;
+  final Future<void> Function() renew;
+
+  const _RegisterRetryDialog({required this.title, required this.bridges, required this.renew});
+
+  @override
+  State<_RegisterRetryDialog> createState() => _RegisterRetryDialogState();
+}
+
+class _RegisterRetryDialogState extends State<_RegisterRetryDialog> {
+  /// Tor's bootstrap percentage while "Retry with Tor" connects.
+  int? _torProgress;
+  String? _error;
+
+  Future<void> _retryWithTor() async {
+    setState(() {
+      _torProgress = 0;
+      _error = null;
+    });
+    try {
+      await SetupTor.run(widget.bridges!, widget.renew, onProgress: (p) {
+        if (mounted) setState(() => _torProgress = p);
+      });
+      if (mounted) Navigator.of(context).pop(true);
+    } catch (e) {
+      if (mounted) {
+        setState(() {
+          _error = e is StateError ? e.message : '$e';
+          _torProgress = null;
+        });
+      }
+    }
+  }
+
+  @override
+  Widget build(BuildContext context) {
+    final theme = Theme.of(context);
+    return AlertDialog(
+      title: Text(widget.title),
+      content: Column(
+        mainAxisSize: MainAxisSize.min,
+        crossAxisAlignment: CrossAxisAlignment.start,
+        children: [
+          Text(
+            "Cloudflare's WARP server couldn't be reached directly from this network. "
+            'Two ways around it:',
+            style: theme.textTheme.bodyMedium,
+          ),
+          const SizedBox(height: 12),
+          Text(
+            '1. Connect in another mode that works (e.g. Psiphon), then tap Register again — '
+            'the request then goes through the tunnel.',
+            style: theme.textTheme.bodyMedium,
+          ),
+          const SizedBox(height: 12),
+          if (_torProgress case final progress?) ...[
+            Text(
+              progress >= 100
+                  ? 'Connecting through Tor…'
+                  : 'Connecting through Tor… $progress%',
+              style: theme.textTheme.bodyMedium,
+            ),
+            const SizedBox(height: 8),
+            LinearProgressIndicator(value: progress >= 100 ? null : progress / 100),
+          ] else ...[
+            Text(
+              '2. Or retry right now through Tor.',
+              style: theme.textTheme.bodyMedium,
+            ),
+          ],
+          if (_error != null) ...[
+            const SizedBox(height: 12),
+            Text(_error!, style: TextStyle(color: theme.colorScheme.error)),
+            const SizedBox(height: 8),
+            Text(
+              'You can also try again later, or connect through another VPN first.',
+              style: theme.textTheme.bodySmall,
+            ),
+          ],
+        ],
+      ),
+      actions: [
+        TextButton(
+          onPressed: _torProgress == null ? () => Navigator.of(context).pop(false) : null,
+          child: const Text('Later'),
+        ),
+        if (widget.bridges != null)
+          FilledButton(
+            onPressed: _torProgress == null ? _retryWithTor : null,
+            child: const Text('Retry with Tor'),
+          ),
+      ],
+    );
+  }
+}
+
 /// Shows the registered WARP account and renews it (panel: "Renew Warp Accounts").
 class _WarpAccountTile extends StatelessWidget {
   const _WarpAccountTile();
@@ -1101,7 +1243,6 @@ class _WarpAccountTile extends StatelessWidget {
               icon: const Icon(Symbols.autorenew_rounded, size: 18),
               label: Text(registered ? 'Renew' : 'Register'),
               onPressed: () async {
-                final messenger = ScaffoldMessenger.of(context);
                 if (registered) {
                   final ok = await showDialog<bool>(
                     context: context,
@@ -1124,14 +1265,13 @@ class _WarpAccountTile extends StatelessWidget {
                   );
                   if (ok != true) return;
                 }
-                try {
-                  await state.renewWarpAccount();
-                  messenger.showSnackBar(
-                    const SnackBar(content: Text('WARP account updated')),
-                  );
-                } on StateError catch (e) {
-                  messenger.showSnackBar(SnackBar(content: Text(e.message)));
-                }
+                if (!context.mounted) return;
+                await _renewAccount(
+                  context,
+                  renew: state.renewWarpAccount,
+                  successMessage: 'WARP account updated',
+                  blockedTitle: "WARP couldn't be registered",
+                );
               },
             ),
     );
@@ -1160,7 +1300,6 @@ class _MasqueAccountTile extends StatelessWidget {
               icon: const Icon(Symbols.autorenew_rounded, size: 18),
               label: Text(registered ? 'Renew' : 'Register'),
               onPressed: () async {
-                final messenger = ScaffoldMessenger.of(context);
                 if (registered) {
                   final ok = await showDialog<bool>(
                     context: context,
@@ -1183,14 +1322,13 @@ class _MasqueAccountTile extends StatelessWidget {
                   );
                   if (ok != true) return;
                 }
-                try {
-                  await state.renewMasqueAccount();
-                  messenger.showSnackBar(
-                    const SnackBar(content: Text('MASQUE account updated')),
-                  );
-                } on StateError catch (e) {
-                  messenger.showSnackBar(SnackBar(content: Text(e.message)));
-                }
+                if (!context.mounted) return;
+                await _renewAccount(
+                  context,
+                  renew: state.renewMasqueAccount,
+                  successMessage: 'MASQUE account updated',
+                  blockedTitle: "MASQUE couldn't be registered",
+                );
               },
             ),
     );

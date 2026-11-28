@@ -38,6 +38,16 @@ jobs:
           cd core
           go build -o bpbcore ./cmd/bpbcore
 
+      - name: Tor bundle for the setup-Tor integration test (hash-checked)
+        run: |
+          TOR_VERSION=16.0.3
+          file="tor-expert-bundle-linux-x86_64-$TOR_VERSION.tar.gz"
+          curl -fsSL -o "$file" "https://dist.torproject.org/torbrowser/$TOR_VERSION/$file"
+          echo "a3fae0d3c263b81ba09e3446bd2af92bc9f8f6edf5bd8f16ab666c6140dc29f7  $file" | sha256sum -c --quiet -
+          mkdir tor-bundle && tar -xzf "$file" -C tor-bundle
+          mkdir -p core/tor
+          cp tor-bundle/tor/tor tor-bundle/tor/pluggable_transports/lyrebird core/tor/
+
       - name: The worker's minified script (a Flutter asset)
         run: |
           cd worker

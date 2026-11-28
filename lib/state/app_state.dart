@@ -738,7 +738,12 @@ class AppState extends ChangeNotifier {
       // Its endpoints: the v4 / v6 addresses Cloudflare offered, on each port (Best Ping picks).
       write('warp.endpoints', reg.endpoints);
     } on WarpException catch (e) {
-      throw e.network ? NetworkStateError(e.message) : StateError(e.message);
+      throw e.network
+          ? NetworkStateError(
+              'Cloudflare WARP is not reachable from this network. Connect in another mode '
+              '(e.g. Psiphon) and try again, or retry through Tor.',
+            )
+          : StateError(e.message);
     } finally {
       renewingWarp = false;
       notifyListeners();
@@ -757,7 +762,12 @@ class AppState extends ChangeNotifier {
       write('masque.account', reg.account.toJson());
       write('masque.endpoints', reg.endpoints);
     } on MasqueException catch (e) {
-      throw e.network ? NetworkStateError(e.message) : StateError(e.message);
+      throw e.network
+          ? NetworkStateError(
+              'Cloudflare WARP is not reachable from this network. Connect in another mode '
+              '(e.g. Psiphon) and try again, or retry through Tor.',
+            )
+          : StateError(e.message);
     } finally {
       renewingMasque = false;
       notifyListeners();
