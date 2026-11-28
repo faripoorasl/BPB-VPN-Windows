@@ -1,0 +1,146 @@
+# Builds and publishes split and universal APKs. Run it manually from the Actions tab.
+# The release tag is v<version> from pubspec.yaml (version: 1.2.3 gives tag v1.2.3).
+#
+# Add KEYSTORE_BASE64, KEYSTORE_PASSWORD, KEY_ALIAS, and KEY_PASSWORD under
+# GitHub Settings → Secrets and variables → Actions.
+name: Release
+
+on:
+  workflow_dispatch:
+    inputs:
+      prerelease:
+        description: Mark the release as a pre-release
+        type: boolean
+        default: false
+
+permissions:
+  contents: write
+
+jobs:
+  release:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+
+      - name: Read version from pubspec.yaml
+        run: |
+          version=$(sed -n 's/^version: *\([^+]*\).*/\1/p' pubspec.yaml | tr -d '[:space:]')
+          if ! printf '%s' "$version" | grep -Eq '^[0-9]+\.[0-9]+\.[0-9]+$'; then
+            echo "::error::Could not read a x.y.z version from pubspec.yaml (got '$version')"
+            exit 1
+          fi
+          echo "VERSION=$version" >> "$GITHUB_ENV"
+          echo "Releasing v$version"
+
+      - uses: actions/setup-java@v4
+        with:
+          distribution: temurin
+          java-version: '21'
+
+      - uses: actions/setup-node@v4
+        with:
+          node-version: lts/*
+
+      - uses: actions/setup-go@v5
+        with:
+          go-version: stable
+          cache: false
+
+      - uses: subosito/flutter-action@v2
+        with:
+          flutter-version: 3.47.7
+          channel: stable
+          cache: true
+
+      - name: Psiphon tunnel core (built from source with the NDK)
+        env:
+          ANDROID_NDK_HOME: ${{ env.ANDROID_NDK_LATEST_HOME }}
+        run: bash scripts/build_psiphon.sh
+
+      - name: Tor and lyrebird (Tor Project's expert bundles, hash-checked)
+        run: bash scripts/fetch_tor.sh
+
+      - name: BPB core (built from core/ with gomobile and the NDK)
+        env:
+          ANDROID_NDK_HOME: ${{ env.ANDROID_NDK_LATEST_HOME }}
+        run: bash scripts/build_core.sh
+
+      - name: Free Go build cache before APK packaging
+        run: |
+          go clean -cache -modcache
+          df -h /
+
+      - name: Routing data (Chocolate4U/Iran-v2ray-rules, latest)
+        run: bash scripts/fetch_geo.sh
+
+      - name: Minify worker
+        working-directory: worker
+        run: |
+          npm install --no-package-lock --no-audit --no-fund
+          npm run minify
+
+      - name: Tor bridges for the setup wizard (fresh each build)
+        run: bash scripts/fetch_tor_bridges.sh
+
+      - run: flutter pub get --enforce-lockfile
+
+      - run: flutter test --no-pub
+
+      - name: Sign release APKs
+        env:
+          KEYSTORE_BASE64: ${{ secrets.KEYSTORE_BASE64 }}
+          KEYSTORE_PASSWORD: ${{ secrets.KEYSTORE_PASSWORD }}
+          KEY_ALIAS: ${{ secrets.KEY_ALIAS }}
+          KEY_PASSWORD: ${{ secrets.KEY_PASSWORD }}
+        run: |
+          set -euo pipefail
+          if [ -z "$KEYSTORE_BASE64" ] || [ -z "$KEYSTORE_PASSWORD" ] || [ -z "$KEY_ALIAS" ] || [ -z "$KEY_PASSWORD" ]; then
+            echo "::error::Release signing secrets are missing. Add KEYSTORE_BASE64, KEYSTORE_PASSWORD, KEY_ALIAS, and KEY_PASSWORD in GitHub Settings > Secrets and variables > Actions."
+            exit 1
+          fi
+
+          mkdir -p android/keystore
+          cleanup() {
+            rm -f android/key.properties android/keystore/release.jks
+          }
+          trap cleanup EXIT
+          printf '%s' "$KEYSTORE_BASE64" | base64 --decode > android/keystore/release.jks
+          keytool -list -keystore android/keystore/release.jks \
+            -storepass "$KEYSTORE_PASSWORD" -alias "$KEY_ALIAS" >/dev/null
+          {
+            printf 'storeFile=../keystore/release.jks\n'
+            printf 'storePassword=%s\n' "$KEYSTORE_PASSWORD"
+            printf 'keyAlias=%s\n' "$KEY_ALIAS"
+            printf 'keyPassword=%s\n' "$KEY_PASSWORD"
+          } > android/key.properties
+          mkdir -p dist
+          flutter build apk --release --split-per-abi --no-pub
+          for abi in arm64-v8a armeabi-v7a x86_64; do
+            apk="build/app/outputs/flutter-apk/app-$abi-release.apk"
+            if [ ! -s "$apk" ]; then
+              echo "::error::Expected APK was not created: $apk"
+              exit 1
+            fi
+            cp "$apk" "dist/bpb-$VERSION-$abi.apk"
+          done
+
+          flutter build apk --release --no-pub
+          apk="build/app/outputs/flutter-apk/app-release.apk"
+          if [ ! -s "$apk" ]; then
+            echo "::error::Expected universal APK was not created: $apk"
+            exit 1
+          fi
+          cp "$apk" "dist/bpb-$VERSION-universal.apk"
+
+      - name: Generate APK SHA-256 checksums
+        run: sha256sum dist/bpb-*.apk > dist/SHA256SUMS
+
+      - uses: softprops/action-gh-release@v2
+        with:
+          tag_name: v${{ env.VERSION }}
+          name: BPB ${{ env.VERSION }}
+          body_path: RELEASE_NOTES.md
+          prerelease: ${{ inputs.prerelease }}
+          files: |
+            dist/*.apk
+            dist/SHA256SUMS

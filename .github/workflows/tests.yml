@@ -1,0 +1,55 @@
+# Every push and pull request: the Go cores' tests (on Linux), the Flutter suite, and the
+# end-to-end bpbcore integration test (a real Xray run, driven over the service protocol).
+name: Tests
+
+on:
+  push:
+    branches: [main]
+  pull_request:
+  workflow_dispatch:
+
+jobs:
+  test:
+    runs-on: ubuntu-latest
+    env:
+      FLUTTER_VERSION: '3.47.7'
+    steps:
+      - uses: actions/checkout@v4
+
+      - uses: actions/setup-go@v5
+        with:
+          go-version-file: core/go.mod
+          cache: false
+
+      - uses: subosito/flutter-action@v2
+        with:
+          flutter-version: ${{ env.FLUTTER_VERSION }}
+          channel: stable
+          cache: true
+
+      - name: Go tests (the core packages)
+        run: |
+          cd core
+          go vet ./cmd/bpbcore
+          go test ./... -count=1 -timeout 420s
+
+      - name: Build the core for the integration test
+        run: |
+          cd core
+          go build -o bpbcore ./cmd/bpbcore
+
+      - name: The worker's minified script (a Flutter asset)
+        run: |
+          cd worker
+          npm install --no-audit --no-fund
+          npm run minify
+
+      - name: Tor bridges and geo assets (test fixtures)
+        run: |
+          bash scripts/fetch_geo.sh
+          bash scripts/fetch_tor_bridges.sh
+
+      - name: Flutter tests (including the bpbcore integration test)
+        env:
+          BPBCORE_BIN: ${{ github.workspace }}/core/bpbcore
+        run: flutter test
