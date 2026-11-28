@@ -153,4 +153,4 @@ jobs:
             build/SHA256SUMS.txt
           draft: false
           prerelease: ${{ inputs.prerelease || false }}
-          body_path: RELEASE_NOTES.md
+          body_path: RELEASE_NOTES-WINDOWS.md
