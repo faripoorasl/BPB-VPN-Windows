@@ -95,7 +95,7 @@
 
 | مجموعه | محیط | تعداد | نتیجه |
 | --- | --- | --- | --- |
-| تست‌های Flutter مخزن اصلی (۳۰ فایل: xray_config، settings، warp، masque، ssh، cloudflare، updates، setup_reset، صفحات و…) | Linux (flutter test) | ۱۸۹ تست | ✅ همه پاس |
+| تست‌های Flutter مخزن اصلی (۳۰ فایل: xray_config، settings، warp، masque، ssh، cloudflare، updates، setup_reset، core_start_failure، صفحات و…) | Linux (flutter test) | ۱۹۰ تست | ✅ همه پاس |
 | تست‌های Go پکیج‌های هسته (core/xray, scanner, ssh, networking) | Linux (go test) | کل مجموعه | ✅ همه پاس |
 | تست‌های واحد سرویس ویندوزی جدید (tun/per-app/traffic/verify/geo/QR/torrc) | Linux (go test ./cmd/bpbcore) | ۸ تست | ✅ همه پاس |
 | **تست یکپارچگی سرتاسری** (`test/bpbcore_service_test.dart`): اجرای واقعی سرویس + Xray واقعی → start → وضعیت Connected → measureDelay از داخل تونل → دانلود ۶۴KB از طریق پروکسی mixed → شمارش ترافیک روی خروجی proxy → stop → قطع کامل | Linux (Xray واقعی) | ۱ سناریو | ✅ پاس |

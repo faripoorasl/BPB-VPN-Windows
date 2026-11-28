@@ -23,11 +23,20 @@ func xrayCoreVersion() string { return xray.Version() }
 // localProxyPort is XrayConfigBuilder.localProxyPort (the mixed inbound).
 const localProxyPort = 10808
 
-// dataDir is %LOCALAPPDATA%\BPBVPN\core (filesDir's equivalent); the tests override it
-// with BPBVPN_DATA_DIR.
+// dataDir is %LOCALAPPDATA%\BPBVPN\core on Windows (filesDir's equivalent; the app's
+// rendezvous file lives there — os.UserConfigDir would be the Roaming profile, which the
+// app never reads), the XDG config dir elsewhere; the tests override it with
+// BPBVPN_DATA_DIR.
 func dataDir() (string, error) {
 	if dir := os.Getenv("BPBVPN_DATA_DIR"); dir != "" {
 		return dir, nil
+	}
+	if runtime.GOOS == "windows" {
+		root := os.Getenv("LOCALAPPDATA")
+		if root == "" {
+			root = `C:\BPBVPN`
+		}
+		return filepath.Join(root, "BPBVPN", "core"), nil
 	}
 	base, err := os.UserConfigDir()
 	if err != nil {

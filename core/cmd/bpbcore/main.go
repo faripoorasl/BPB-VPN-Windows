@@ -24,7 +24,7 @@ import (
 )
 
 // Version of the bpbcore host itself (not Xray's, see the version method).
-const hostVersion = "1.3.4"
+const hostVersion = "1.3.5"
 
 func main() {
 	service := flag.Bool("service", false, "run the app-facing service")

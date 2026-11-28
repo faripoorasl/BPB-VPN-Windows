@@ -153,8 +153,10 @@ class BpbCoreClient {
   }
 
   /// The service binary, next to the app's own executable (or in the working directory for
-  /// the tests).
+  /// the tests). [serviceBinaryOverride] replaces it (the tests use it).
+  static String? serviceBinaryOverride;
   static String? serviceBinary() {
+    if (serviceBinaryOverride != null) return serviceBinaryOverride;
     final name = Platform.isWindows ? 'bpbcore.exe' : 'bpbcore';
     final exe = File(Platform.resolvedExecutable);
     final directories = [
@@ -203,17 +205,82 @@ class BpbCoreClient {
         );
       }
     } else {
-      await Process.start(exe, ['--service'], mode: ProcessStartMode.detached);
+      final process = await _spawn(exe);
+      // Whatever the service prints (a crash reason lives here) — keep the last few KB.
+      final output = StringBuffer();
+      void note(String chunk) {
+        output.write(chunk);
+        final text = output.toString();
+        if (text.length > 4096) {
+          output
+            ..clear()
+            ..write(text.substring(text.length - 4096));
+        }
+      }
+
+      Future<void> drain(Stream<List<int>> stream) async {
+        await for (final chunk in stream) {
+          note(utf8.decode(chunk, allowMalformed: true));
+        }
+      }
+
+      unawaited(drain(process.stderr));
+      unawaited(drain(process.stdout));
+      // The service writes the info file once it is listening; when it dies first, its
+      // output says why (an antivirus blocking the binary looks the same at spawn time).
+      var exitCode = -1;
+      var exited = false;
+      unawaited(
+        process.exitCode.then((code) {
+          exitCode = code;
+          exited = true;
+        }),
+      );
+      final deadline = DateTime.now().add(const Duration(seconds: 30));
+      while (DateTime.now().isBefore(deadline)) {
+        if (await info.exists() && (await info.length()) > 2) return;
+        if (exited) {
+          throw StateError(
+            'The BPB core service exited immediately (code $exitCode).'
+            '${_tail(output)}',
+          );
+        }
+        await Future<void>.delayed(const Duration(milliseconds: 150));
+      }
+      process.kill();
+      throw StateError(
+        'The BPB core service did not start within 30 seconds.'
+        '${_tail(output)}',
+      );
     }
-    // The service writes the info file once it is listening.
-    final deadline = DateTime.now().add(
-      elevated ? const Duration(minutes: 2) : const Duration(seconds: 15),
-    );
+    // Only the elevated Windows path reaches this: the child reports through the info file
+    // alone (a UAC prompt can take a while).
+    final deadline = DateTime.now().add(const Duration(minutes: 2));
     while (DateTime.now().isBefore(deadline)) {
       if (await info.exists() && (await info.length()) > 2) return;
       await Future<void>.delayed(const Duration(milliseconds: 150));
     }
     throw StateError('The BPB core service did not start.');
+  }
+
+  /// Runs [exe] as the service; a refusal (antivirus, policy) becomes a clear error.
+  Future<Process> _spawn(String exe) async {
+    try {
+      return await Process.start(exe, ['--service']);
+    } on ProcessException catch (e) {
+      throw StateError(
+        'The BPB core service binary could not be run (${e.message}). '
+        'Antivirus software or policy may be blocking it.',
+      );
+    }
+  }
+
+  /// The captured output as " Output: …", or nothing.
+  static String _tail(StringBuffer output) {
+    var text = output.toString().trim();
+    if (text.isEmpty) return '';
+    if (text.length > 400) text = '…${text.substring(text.length - 400)}';
+    return ' Output: $text';
   }
 
   Future<bool> _connectToRunning() async {
