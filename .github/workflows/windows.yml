@@ -125,7 +125,7 @@ jobs:
           rm -rf build/staged && cp -r "build/BPB-VPN-$VERSION-windows-x64" build/staged
           sed -i "s/#define MyAppVersion \".*\"/#define MyAppVersion \"$VERSION\"/" installer/installer.iss
           "/c/Program Files (x86)/Inno Setup 6/ISCC.exe" installer/installer.iss
-          cp "installer/Output/BPB-VPN-Setup-$VERSION-windows-x64.exe" build/
+          cp "build/staged/Output/BPB-VPN-Setup-$VERSION-windows-x64.exe" build/
 
       - name: Zip the portable bundle
         run: |

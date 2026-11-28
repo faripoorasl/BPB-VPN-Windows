@@ -26,6 +26,7 @@ ArchitecturesInstallIn64BitMode=x64compatible
 ArchitecturesAllowed=x64compatible
 WizardStyle=modern
 PrivilegesRequired=admin
+UsedUserAreasWarning=no
 SetupIconFile=..\..\windows\runner\resources\app_icon.ico
 MinVersion=10.0
 
