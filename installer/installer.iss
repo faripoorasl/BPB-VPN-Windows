@@ -3,7 +3,7 @@
 
 #define MyAppName "BPB VPN"
 #ifndef MyAppVersion
-#define MyAppVersion "1.3.5"
+#define MyAppVersion "1.3.6"
 #endif
 
 [Setup]
@@ -11,7 +11,10 @@ AppId={{5D7965D1-47DE-4380-8BE8-D5087B4930B3}
 AppName={#MyAppName}
 AppVersion={#MyAppVersion}
 AppVerName={#MyAppName} {#MyAppVersion}
-AppPublisher=BPB
+AppPublisher=BPB VPN
+AppPublisherURL=https://github.com/faripoorasl/BPB-VPN-Windows
+AppSupportURL=https://github.com/faripoorasl/BPB-VPN-Windows/issues
+AppUpdatesURL=https://github.com/faripoorasl/BPB-VPN-Windows/releases
 DefaultDirName={autopf}\BPB VPN
 DefaultGroupName={#MyAppName}
 UninstallDisplayName={#MyAppName}

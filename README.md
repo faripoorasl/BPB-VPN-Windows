@@ -1,6 +1,6 @@
 # BPB VPN for Windows
 
-**BPB VPN** for Windows is the [BPB-VPN](https://github.com/bia-pain-bache/BPB-VPN) Android app ported to the Windows desktop — the same Flutter interface, the same Go core, the same protocols, adapted to Windows natively.
+**BPB VPN** for Windows is the Windows-desktop port of the BPB-VPN Android app — the same Flutter interface, the same Go core, the same protocols, adapted to Windows natively.
 
 > **One app. Multiple ways to stay connected.**
 > Highly customizable Cloudflare CDN connections, Psiphon, Tor, SSH and Serverless solutions in one VPN client powered by [Xray-core](https://xtls.github.io).
@@ -47,4 +47,4 @@ flutter build windows --release   # + the bundled assets the CI fetches
 
 ## License
 
-GNU GPL v3.0, as the upstream project. All credit for the app's design and logic goes to [bia-pain-bache](https://github.com/bia-pain-bache) and the BPB community; this port reuses their work under the same license.
+GNU GPL v3.0 — see [LICENSE](LICENSE). BPB VPN for Windows is Copyright (C) 2026 Fariborz (faripoorasl) and is published from its own repository, [faripoorasl/BPB-VPN-Windows](https://github.com/faripoorasl/BPB-VPN-Windows), as a derivative work of the BPB-VPN Android app under the same license; credit for the original design and logic goes to the BPB community.

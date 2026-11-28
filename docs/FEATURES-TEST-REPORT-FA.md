@@ -7,7 +7,7 @@
 
 ## ۱. نتیجه‌ی تحلیل مخزن اصلی
 
-مخزن [bia-pain-bache/BPB-VPN](https://github.com/bia-pain-bache/BPB-VPN) یک برنامه‌ی **Flutter اندروید** (نسخه 1.3.2+8) است با:
+مخزن اصلی BPB-VPN یک برنامه‌ی **Flutter اندروید** (نسخه 1.3.2+8) است با:
 
 - **هسته‌ی Go** در `core/`: بسته‌بندی Xray-core (نسخه v1.260327.x) به‌همراه ماژول‌های اختصاصی `scanner` (اسکنر REAL با پروب HTTP)، `ssh` (تونل SSH به‌صورت SOCKS) و `networking` (گیت‌وی ECH و تست DNS) که با gomobile برای اندروید به `core.aar` ساخته می‌شود.
 - **Psiphon** به‌صورت باینری جدا (`psiphon/` — فورک psiphon-tunnel-core با SOCKS/DNS داخلی) که به‌عنوان پروسه‌ی خروج اجرا می‌شود.
@@ -151,4 +151,4 @@ BPB-VPN-Windows/
 
 ## ۷. لایسنس و اعتبار
 
-GNU GPL v3.0 — همان لایسنس پروژه اصلی. تمام طراحی و منطق متعلق به [bia-pain-bache](https://github.com/bia-pain-bache) و جامعه BPB است؛ این پورت، همان کار را تحت همان لایسنس به ویندوز می‌برد.
+GNU GPL v3.0 — متن کامل در [LICENSE](LICENSE). این پروژه (BPB VPN for Windows) اثر مشتقی از BPB-VPN است و تحت همان لایسنس از مخزن [faripoorasl/BPB-VPN-Windows](https://github.com/faripoorasl/BPB-VPN-Windows) منتشر می‌شود؛ اعتبار طراحی و منطق اولیه متعلق به جامعه BPB است.

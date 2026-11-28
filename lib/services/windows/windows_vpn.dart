@@ -297,14 +297,16 @@ class WindowsVpnChannel {
     return (xray: '', psiphon: '', tor: '');
   }
 
-  /// The installed app's version and this machine's ABI.
+  /// The installed app's version and this machine's ABI. The `windows-x64` prefix is what the
+  /// update checker keys on: it selects this project's repository and the `-windows-x64`
+  /// zip/setup assets of its releases.
   static Future<({String version, List<String> abis})> appInfo() async {
     try {
       final info = await _core.hostInfo();
       final version = '${info?['hostVersion'] ?? ''}';
-      if (version.isNotEmpty) return (version: version, abis: const ['x64']);
+      if (version.isNotEmpty) return (version: version, abis: const ['windows-x64']);
     } catch (_) {}
-    return (version: '', abis: const ['x64']);
+    return (version: '', abis: const ['windows-x64']);
   }
 
   static Future<int> measureDelay() async {

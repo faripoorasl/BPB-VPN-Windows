@@ -9,7 +9,7 @@ http.Response release(String tag) => http.Response(
   jsonEncode({
     'tag_name': tag,
     'body': 'Fixes',
-    'html_url': 'https://github.com/bia-pain-bache/BPB-VPN/releases/tag/$tag',
+    'html_url': 'https://github.com/faripoorasl/BPB-VPN-Windows/releases/tag/$tag',
     'assets': [
       for (final abi in ['arm64-v8a', 'armeabi-v7a', 'x86_64'])
         {
@@ -32,7 +32,7 @@ void main() {
 
   test('a newer release: its notes, and the APK for the first ABI it has', () async {
     final client = MockClient((req) async {
-      expect(req.url.toString(), 'https://api.github.com/repos/bia-pain-bache/BPB-VPN/releases/latest');
+      expect(req.url.toString(), 'https://api.github.com/repos/faripoorasl/BPB-VPN-Windows/releases/latest');
       return release('v1.1.0');
     });
     final update = await UpdateChecker(client).check(installed: '1.0.0', abis: ['riscv64', 'armeabi-v7a']);
@@ -46,6 +46,33 @@ void main() {
       await UpdateChecker(MockClient((_) async => release('v1.0.0'))).check(installed: '1.0.0', abis: ['arm64-v8a']),
       isNull,
     );
+  });
+
+  test('a Windows ABI checks the same repository and takes the zip/setup asset', () async {
+    final client = MockClient((req) async {
+      expect(req.url.toString(), 'https://api.github.com/repos/faripoorasl/BPB-VPN-Windows/releases/latest');
+      return http.Response(
+        jsonEncode({
+          'tag_name': 'v1.4.0',
+          'body': 'Fixes',
+          'html_url': 'https://github.com/faripoorasl/BPB-VPN-Windows/releases/tag/v1.4.0',
+          'assets': [
+            {
+              'name': 'bpb-1.4.0-windows-x64.zip',
+              'browser_download_url': 'https://github.com/faripoorasl/BPB-VPN-Windows/releases/download/v1.4.0/bpb-1.4.0-windows-x64.zip',
+            },
+            {
+              'name': 'BPB-VPN-Setup-1.4.0-windows-x64.exe',
+              'browser_download_url': 'https://github.com/faripoorasl/BPB-VPN-Windows/releases/download/v1.4.0/BPB-VPN-Setup-1.4.0-windows-x64.exe',
+            },
+          ],
+        }),
+        200,
+      );
+    });
+    final update = await UpdateChecker(client).check(installed: '1.3.5', abis: ['windows-x64']);
+    expect(update!.version, '1.4.0');
+    expect(update.apkUrl, endsWith('bpb-1.4.0-windows-x64.zip'));
   });
 
   test('a 404 is not reported as up to date', () async {

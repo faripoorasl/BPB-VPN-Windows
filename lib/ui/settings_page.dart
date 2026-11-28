@@ -1517,7 +1517,7 @@ class _CloudflareAccountsTile extends StatelessWidget {
   }
 }
 
-const sourceCodeUrl = 'https://github.com/bia-pain-bache/BPB-VPN';
+const sourceCodeUrl = 'https://github.com/faripoorasl/BPB-VPN-Windows';
 
 /// The installed app's version (pubspec.yaml's); opens the cores' versions.
 class _VersionTile extends StatelessWidget {

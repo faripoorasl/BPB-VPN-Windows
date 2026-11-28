@@ -26,23 +26,22 @@ class UpdateException implements Exception {
   String toString() => message;
 }
 
-/// Checks the repository's latest release (drafts and pre-releases aren't "latest") against
-/// the installed version. Releases are tagged vX.Y.Z and carry one APK per ABI, named
-/// `bpb-X.Y.Z-<abi>.apk` (see .github/workflows/release.yml). The Windows build checks its
-/// own repository's releases, whose assets are named `bpb-<version>-<abi>.zip` / `.exe`.
+/// Checks this project's latest release (drafts and pre-releases aren't "latest") against
+/// the installed version. Releases are tagged vX.Y.Z and live in this repository: the Windows
+/// assets are named `bpb-X.Y.Z-windows-x64.zip` / `BPB-VPN-Setup-X.Y.Z-windows-x64.exe`
+/// (see .github/workflows/windows.yml) and Android builds look for `bpb-X.Y.Z-<abi>.apk`.
 class UpdateChecker {
-  static const repository = 'bia-pain-bache/BPB-VPN';
-  /// The Windows fork, where the Windows releases live.
-  static const windowsRepository = 'faripoorasl/BPB-VPN-Windows';
+  /// This project's repository — every release, Windows or Android, is published here.
+  static const repository = 'faripoorasl/BPB-VPN-Windows';
 
   final http.Client client;
   const UpdateChecker(this.client);
 
-  /// The newer release, or null when [installed] is the latest. [abis]: the device's, preferred
-  /// first; a `windows` ABI switches to the Windows repository and asset names.
+  /// The newer release, or null when [installed] is the latest. [abis]: the platform's, preferred
+  /// first; a `windows` ABI selects the `-windows-x64` zip/setup assets.
   Future<AppUpdate?> check({required String installed, required List<String> abis}) async {
     final isWindows = abis.any((a) => a.startsWith('windows'));
-    final repo = isWindows ? windowsRepository : repository;
+    final repo = repository;
     final latest = 'https://api.github.com/repos/$repo/releases/latest';
     final http.Response res;
     try {
