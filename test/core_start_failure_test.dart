@@ -20,14 +20,15 @@ void main() {
       await sandbox.delete(recursive: true);
     });
 
+    // The sh script runs on Linux/macOS (exit 3 + its output is reported); Windows can't
+    // run it at all and reports the refusal itself.
+    final message = Platform.isWindows
+        ? contains('could not be run')
+        : allOf(contains('code 3'), contains('boom: blocked'));
     await expectLater(
       BpbCoreClient.instance.connect(),
       throwsA(
-        isA<StateError>().having(
-          (e) => e.message,
-          'message',
-          allOf(contains('code 3'), contains('boom: blocked')),
-        ),
+        isA<StateError>().having((e) => e.message, 'message', message),
       ),
     );
   });
