@@ -130,7 +130,7 @@ jobs:
       - name: Zip the portable bundle
         run: |
           cd build
-          powershell -Command "Compress-Archive -Path 'BPB-VPN-$env:VERSION-windows-x64' -DestinationPath 'bpb-$VERSION-windows-x64.zip' -Force"
+          powershell -Command "Compress-Archive -Path 'BPB-VPN-${VERSION}-windows-x64' -DestinationPath 'bpb-${VERSION}-windows-x64.zip' -Force"
           sha256sum "bpb-$VERSION-windows-x64.zip" "BPB-VPN-Setup-$VERSION-windows-x64.exe" > SHA256SUMS.txt
           cat SHA256SUMS.txt
 
