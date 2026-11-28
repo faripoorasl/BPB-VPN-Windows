@@ -5,6 +5,7 @@
 !/.gitignore
 !/README.md
 !/RELEASE_NOTES.md
+!/RELEASE_NOTES-WINDOWS.md
 !/LICENSE
 !/pubspec.yaml
 !/pubspec.lock
