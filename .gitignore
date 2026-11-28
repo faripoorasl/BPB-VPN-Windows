@@ -6,6 +6,8 @@
 !/README.md
 !/RELEASE_NOTES.md
 !/RELEASE_NOTES-WINDOWS.md
+!/docs/
+!/docs/**
 !/LICENSE
 !/pubspec.yaml
 !/pubspec.lock
