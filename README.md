@@ -1,43 +1,50 @@
-# BPB VPN
+# BPB VPN for Windows
 
-**One app. Multiple ways to stay connected.**
+**BPB VPN** for Windows is the [BPB-VPN](https://github.com/bia-pain-bache/BPB-VPN) Android app ported to the Windows desktop — the same Flutter interface, the same Go core, the same protocols, adapted to Windows natively.
 
-BPB brings highly customizable Cloudflare CDN connections, Psiphon, Tor, SSH and Serverless solutions together in one approachable VPN client powered by [Xray-core](https://xtls.github.io). Start with the guided setup, then choose a ready-to-use connection or fine-tune the details for your network.
+> **One app. Multiple ways to stay connected.**
+> Highly customizable Cloudflare CDN connections, Psiphon, Tor, SSH and Serverless solutions in one VPN client powered by [Xray-core](https://xtls.github.io).
 
-> Built for networks where ordinary connections may be restricted. Results depend on your network and configuration; no method can guarantee access everywhere.
+[فارسی](docs/INSTALL-FA.md) — راهنمای نصب و استفاده به فارسی در پوشه‌ی `docs/` قرار دارد.
 
-## What makes BPB different?
+## What is reused from the original app
 
-- **Your own Cloudflare setup:** Deploy private Workers and Pages from the app using your own Cloudflare account. The guided wizard walks you through it.
-- **More than one route:** Choose VLESS, WARP, MASQUE, SSH or Serverless connections. Psiphon and Tor are also optimized, built in and can be combined with Serverless methods to bypass regular restrictions.
-- **Tunable for your network:** Adjust SNI and connection IPs, TLS fingerprints, TCP fragmentation, UDP obfuscation, DNS, routing and more DPI bypassing tricks without being locked into one preset.
-- **Find responsive endpoints:** Built-in **REAL** scanners help discover Cloudflare IPs and WARP/MASQUE endpoints. Results depend on your current network and selected settings.
-- **Useful everyday controls:** Per-app proxying, proxy-chain imports, connection logs, configuration sharing and customizable theme.
+| Layer | Source | Windows |
+| --- | --- | --- |
+| Interface (UI/UX) | `lib/` — Flutter Material 3, Baloo font, all pages | **Unchanged**; a fixed 420×760 window keeps the phone layout |
+| VPN core | `core/` — Xray-core (vless/warp/masque/ssh/serverless, fragment, REALITY, uTLS, ECH) | **The same Go code**, cross-compiled; the TUN is Xray's own Windows inbound (wintun) |
+| Exits | `psiphon/`, Tor expert bundle | The same `psiphon` Go module → `psiphon.exe`; Tor 16 + lyrebird for Windows |
+| Worker panel | `worker/worker.js` | **Unchanged** — deployed to your Cloudflare account from the app |
+| Setup wizard, DNS, routing, fragments, noises, per-app, chains, logs… | `lib/ui/`, `lib/services/` | **Unchanged** except small platform branches |
 
-## Get started
+## What the Windows port adds
 
-1. Download the latest Android APK from [Releases](https://github.com/bia-pain-bache/BPB-VPN/releases/latest).
-2. Open BPB and follow the setup wizard. BPB guides deployment in the app.
-3. Choose a connection and connect. Psiphon, Tor and Serverless are available without adding a Cloudflare account.
+- **`core/cmd/bpbcore`** — the Windows service host (the Android `MainActivity`/`BpbVpnService`/`CoreManager`/`ExitProcess`/`TrafficMeter` layer, in Go): one Xray instance, the Psiphon/Tor exit processes, traffic sampling, logs, the scanner, the setup-wizard Tor and the verification loop, served to the app over a localhost JSON-lines protocol. It relaunches itself elevated (UAC) only when VPN (TUN) mode needs it; proxy mode never asks for rights.
+- **`lib/services/windows/`** — the platform-channel implementation over that service: Windows file dialogs, Explorer sharing, the system HTTP proxy (`appendHttpProxy`), QR decode from an image (no camera on desktop), the installed-programs list for per-app proxying (routing rules on `process`), and the geo/CA file plumbing.
+- **`windows/`** — the Flutter Windows runner: fixed-size window (no resize/maximize), single instance, BPB icon and version info.
 
-Use the **universal APK** if you are unsure which download to choose. Release notes and checksums are included with each release.
+## Feature parity
 
-## Customize when you need to
+Everything the Android app does, including: Worker (VLESS over WS/TLS with best-ping across ports and clean IPs), WARP and obfuscated WARP, MASQUE (h2/h3), Tor (direct/snowflake/obfs4/meek/webtunnel/custom bridges), Psiphon, SSH exits, Serverless (fragment/UDP-noise/DNS/domain-fronting), chain proxies (v2ray links and WireGuard), TCP fragmentation, UDP noises, REAL Cloudflare/WARP/MASQUE endpoint scanners, DNS manager with DoH/DoQ tests, routing presets (bypass/ sanction bypass/ block), per-app proxy, LAN sharing with authentication, system HTTP proxy, config viewer, logs, geo-asset updates, in-app worker deployment and updates, settings export/import, themes.
 
-Most users can begin with the defaults. If a connection needs adjustment, BPB brings the relevant controls together:
+See [docs/FEATURES-TEST-REPORT-FA.md](docs/FEATURES-TEST-REPORT-FA.md) for the full feature/test matrix in Persian.
 
-- Choose or scan clean IPs, endpoints, Tor bridges, and tune SNI and TLS fingerprint settings.
-- Enable TCP fragmentation or UDP obfuscation where they help your network.
-- Configure traffic splitting (routing), DNS, IPv4/IPv6, or proxy only selected apps.
-- Import supported v2ray links or WireGuard configurations as chain proxies.
-- Review live connection logs and export or share settings with others.
+## Download & install
 
-These are options to experiment with no guarantee. The best settings vary by ISP, location and network conditions.
+Grab `BPB-VPN-Setup-x.y.z-windows-x64.exe` (installer) or `bpb-x.y.z-windows-x64.zip` (portable) from the [Releases](https://github.com/faripoorasl/BPB-VPN-Windows/releases) page. Windows 10/11 x64. VPN mode asks for administrator rights once per connection (the TUN device); Proxy mode doesn't.
 
-## Platform
+## Building from source
 
-The VPN is only supported on **Android** for now. Other platform builds will be released one by one.
+```bash
+# Tests (Linux/macOS/Windows): the Go suites + the Flutter suite + the core integration test
+./scripts/test_core.sh
 
-## Open source
+# The Windows build (what the CI does, see .github/workflows/windows.yml)
+GOOS=windows go build -o build/bpbcore.exe -C core ./cmd/bpbcore
+GOOS=windows CGO_ENABLED=0 go build -o build/psiphon.exe -C psiphon .
+flutter build windows --release   # + the bundled assets the CI fetches
+```
 
-BPB is licensed under the [GNU GPL v3.0](LICENSE). See [release notes](RELEASE_NOTES.md) for recent changes and [Issues](https://github.com/bia-pain-bache/BPB-VPN/issues) to report technical bugs or misconfigurations.
+## License
+
+GNU GPL v3.0, as the upstream project. All credit for the app's design and logic goes to [bia-pain-bache](https://github.com/bia-pain-bache) and the BPB community; this port reuses their work under the same license.
