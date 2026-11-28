@@ -30,8 +30,6 @@ void main() {
     );
     final state = AppState();
     await state.init();
-    // init() starts periodic timers (LAN refresh); without this they outlive the test.
-    addTearDown(state.dispose);
     return state;
   }
 
@@ -74,24 +72,30 @@ void main() {
       ),
     ];
 
-    expect(state.needsSetup, isFalse, reason: 'setup was finished');
-    expect(state.profile.warp.account, isNotNull);
-    expect(state.profile.masque.account, isNotNull);
-    expect(state.cfAccounts, hasLength(1));
+    // init() starts periodic timers; dispose inside the body, before the framework's
+    // pending-timer check (which older Flutter runs before addTearDown).
+    try {
+      expect(state.needsSetup, isFalse, reason: 'setup was finished');
+      expect(state.profile.warp.account, isNotNull);
+      expect(state.profile.masque.account, isNotNull);
+      expect(state.cfAccounts, hasLength(1));
 
-    await state.runSetupAgain();
+      await state.runSetupAgain();
 
-    expect(state.cfAccounts, isEmpty, reason: 'accounts are forgotten');
-    expect(state.profile.warp.account, isNull, reason: 'WARP registration goes');
-    expect(state.profile.masque.account, isNull, reason: 'MASQUE registration goes');
-    expect(state.device.setupDone, isFalse);
-    expect(state.needsSetup, isTrue, reason: 'the wizard replaces the home page');
-    // Endpoints survive (they belong to the network, not the account), like resetSettings.
-    expect(state.profile.warp.endpoints, ['162.159.192.1:2408']);
-    expect(state.profile.masque.endpoints, ['162.159.198.1:443']);
-    // Ordinary settings survive.
-    expect(state.profile.general.localDns, '9.9.9.9');
-    expect(state.profile.general.remoteDns, '8.8.8.8');
+      expect(state.cfAccounts, isEmpty, reason: 'accounts are forgotten');
+      expect(state.profile.warp.account, isNull, reason: 'WARP registration goes');
+      expect(state.profile.masque.account, isNull, reason: 'MASQUE registration goes');
+      expect(state.device.setupDone, isFalse);
+      expect(state.needsSetup, isTrue, reason: 'the wizard replaces the home page');
+      // Endpoints survive (they belong to the network, not the account), like resetSettings.
+      expect(state.profile.warp.endpoints, ['162.159.192.1:2408']);
+      expect(state.profile.masque.endpoints, ['162.159.198.1:443']);
+      // Ordinary settings survive.
+      expect(state.profile.general.localDns, '9.9.9.9');
+      expect(state.profile.general.remoteDns, '8.8.8.8');
+    } finally {
+      state.dispose();
+    }
   });
 
   testWidgets('with resetAllSettings the rest of the settings return to their defaults too',
@@ -109,10 +113,14 @@ void main() {
       },
     });
 
-    await state.runSetupAgain(resetAllSettings: true);
+    try {
+      await state.runSetupAgain(resetAllSettings: true);
 
-    expect(state.profile.general.remoteDns, isNot('8.8.8.8'), reason: 'back to the default');
-    expect(state.profile.warp.account, isNull);
-    expect(state.needsSetup, isTrue);
+      expect(state.profile.general.remoteDns, isNot('8.8.8.8'), reason: 'back to the default');
+      expect(state.profile.warp.account, isNull);
+      expect(state.needsSetup, isTrue);
+    } finally {
+      state.dispose();
+    }
   });
 }
