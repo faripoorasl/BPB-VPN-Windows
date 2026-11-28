@@ -23,6 +23,16 @@ void main() {
     );
     return;
   }
+  // The bootstrap needs the real Tor network, so it only runs when asked for
+  // (BPB_TOR_E2E=1, like the core's BPB_E2E tests); CI runs the deterministic suites.
+  if (Platform.environment['BPB_TOR_E2E'] == null) {
+    test(
+      'setup Tor bootstrap (skipped: set BPB_TOR_E2E=1 to run it against the Tor network)',
+      () {},
+      skip: 'BPB_TOR_E2E is not set',
+    );
+    return;
+  }
   // The core runs the setup Tor from a tor/ dir next to its own binary (binDir); without the
   // staged bundle (CI: tests.yml downloads it) there is nothing to bootstrap with.
   final binDir = File(bin).parent.path;
@@ -100,7 +110,9 @@ void main() {
       expect(st.error, isNull, reason: st.error ?? '');
       final m = Map<String, dynamic>.from(st.result as Map);
       progress = (m['progress'] as num?)?.toInt() ?? 0;
-      if (m['running'] != true) fail('Tor stopped early: ${m['error']}');
+      if (m['running'] != true) {
+        fail('Tor stopped early: ${m['error']}\n${torLogTail(sandbox.path)}');
+      }
       if (progress >= 100) break;
     }
     expect(progress, 100, reason: 'Tor bootstrapped through the embedded bridges');
@@ -123,4 +135,18 @@ void main() {
       // Expected: tor is gone and the port is closed again.
     }
   }, timeout: const Timeout(Duration(minutes: 6)));
+}
+
+/// torrc logs into a file (notice level), so tor's real complaint on a failed bootstrap is
+/// only there: quote its tail, as the failure message, before the sandbox is cleaned up.
+String torLogTail(String sandboxPath) {
+  try {
+    final lines = File(
+      '$sandboxPath${Platform.pathSeparator}tor-setup${Platform.pathSeparator}tor.log',
+    ).readAsLinesSync();
+    if (lines.isEmpty) return '(tor.log is empty)';
+    return 'tor.log tail:\n${lines.sublist(lines.length < 15 ? 0 : lines.length - 15).join('\n')}';
+  } catch (e) {
+    return '(no tor.log: $e)';
+  }
 }

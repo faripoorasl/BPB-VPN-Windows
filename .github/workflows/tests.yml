@@ -38,7 +38,9 @@ jobs:
           cd core
           go build -o bpbcore ./cmd/bpbcore
 
-      - name: Tor bundle for the setup-Tor integration test (hash-checked)
+      # Staged on every push so the download URL and hash stay checked; the bootstrap test
+      # itself needs the real Tor network and only runs with BPB_TOR_E2E=1.
+      - name: Tor bundle (hash-checked)
         run: |
           TOR_VERSION=16.0.3
           file="tor-expert-bundle-linux-x86_64-$TOR_VERSION.tar.gz"
